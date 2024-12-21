@@ -79,8 +79,8 @@ https://github.com/shuntaka9576/smart-home
 
 * データ収集
 * データ配信
-* Claude Desktopによる分析
-* 生成AIによる分析
+* 生成AI(Claude Desktop with MCP)による分析
+* 生成AI(LangGraph)による分析
 
 ![architecture](https://devio2024-media.developers.io/image/upload/v1734727155/2024/12/21/n85ip5c2o1vqnavc9yvc.png)
 
@@ -601,13 +601,20 @@ Goビルド時はMakefile経由で`.env` を参照してエンドポイントを
 make build
 ```
 
-動作確認は、次項でClaude Desktopを使います。
+デバック作業は、後述するPythonのAIエージェントアプリの標準出力にMCPサーバーの標準出力が書き込まれるためそちらで確認しました。公式ドキュメントには、[デバックの方法](https://modelcontextprotocol.io/docs/tools/debugging)も乗っているので、こちらを参考にしても良いと思います。
+
+動作確認は、次項でClaude Desktopを使って行います。
 
 ## Claude Desktop(with 作成したMCPサーバー)で分析してみる
 
-### コンフィグの設定
+### 構成図
 
-Amazon APIGatwayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
+ここまでで収集と配信とMCPを実装したので、Claude Desktopで自宅の電力量が簡易に分析できるようになります。イメージが湧き辛いのでやってみます。
+![architecture_03](https://devio2024-media.developers.io/image/upload/v1734727149/2024/12/21/drgo3eqzjjy6dbievcke.png)
+
+### Claude Desktopのコンフィグの設定
+
+APIGatwayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
 
 ```bash
 nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -620,36 +627,59 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
       "command": "/Users/shuntaka/repos/github.com/shuntaka9576/smart-home/apps/smart-home-ai-agent/smart-home-mcp-server",
       "args": [],
       "env": {
-        "SMART_HOME_API_KEY": ""
+        "SMART_HOME_API_KEY": "<APIGatwayのAPIキー>" // <- ここに入れてね
       }
     }
   }
 }
 ```
 
+### 分析してみる
 
+今日の電力量を確認してみます。
 
-## 生成AIによる分析の実装
+![CleanShot 2024-12-22 at 04.04.34@2x](https://devio2024-media.developers.io/image/upload/v1734807907/2024/12/22/eepcum6vggamdjmzucsi.png)
 
-予想に必要な過去のセンサーデータ問い合わせの期間は、電気料金の明細データをDBに取り込めば実装側で算出可能ですが、そこそこ工数がかかるので明細データをプロンプトにしてLLM側に判断してもらいます。
+内訳を見ると、`since`: `2024-12-22 00:00`に`until`: `2024-12-22 23:59` を指定して呼び出していることがわかります。
+![CleanShot 2024-12-22 at 04.06.02@2x](https://devio2024-media.developers.io/image/upload/v1734807992/2024/12/22/oh1bahp3y6bnv1f2lztq.png)
 
-:::message
-センサーデータは12月14日からしかないことについて
+:::details 内訳全部
+{
+  `since`: `2024-12-22 00:00`,
+  `until`: `2024-12-22 23:59`
+}
+[{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":94,"temperature":18.1,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:00:36.027+09:00","updatedAt":"2024-12-22T00:00:36.027+09:00","electricEnergyDelta":40.3},{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":98,"temperature":18.1,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:15:36.145+09:00","updatedAt":"2024-12-22T00:15:36.145+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":68,"temperature":17.9,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:30:35.874+09:00","updatedAt":"2024-12-22T00:30:35.874+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":86,"temperature":17.8,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:45:35.95+09:00","updatedAt":"2024-12-22T00:45:35.95+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":222,"temperature":17.8,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:00:36.108+09:00","updatedAt":"2024-12-22T01:00:36.108+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":222,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:15:35.916+09:00","updatedAt":"2024-12-22T01:15:35.916+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.8,"measuredInstantaneous":102,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:30:35.783+09:00","updatedAt":"2024-12-22T01:30:35.783+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.8,"measuredInstantaneous":151,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:45:35.885+09:00","updatedAt":"2024-12-22T01:45:35.885+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":130,"temperature":17.6,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:00:36.169+09:00","updatedAt":"2024-12-22T02:00:36.169+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":100,"temperature":17.4,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:15:36.241+09:00","updatedAt":"2024-12-22T02:15:36.241+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":100,"temperature":17.3,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:30:36.118+09:00","updatedAt":"2024-12-22T02:30:36.118+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":89,"temperature":17.2,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:45:35.934+09:00","updatedAt":"2024-12-22T02:45:35.934+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":86,"temperature":17,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:00:36.212+09:00","updatedAt":"2024-12-22T03:00:36.212+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":86,"temperature":16.9,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:15:35.829+09:00","updatedAt":"2024-12-22T03:15:35.829+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":81,"temperature":16.8,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:30:35.803+09:00","updatedAt":"2024-12-22T03:30:35.803+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197.2,"measuredInstantaneous":180,"temperature":17.6,"humidity":73,"illuminance":40,"acStatus":true,"createdAt":"2024-12-22T03:45:36.216+09:00","updatedAt":"2024-12-22T03:45:36.216+09:00","electricEnergyDelta":0.2},{"cumulativeElectricEnergy":9197.2,"measuredInstantaneous":553,"temperature":18.7,"humidity":72,"illuminance":40,"acStatus":true,"createdAt":"2024-12-22T04:00:35.942+09:00","updatedAt":"2024-12-22T04:00:35.942+09:00","electricEnergyDelta":0}]
 :::
 
 
+LLMは単純な計算処理が苦手です。先ほどの結果には間違いがあります。なので再度問い合わせたところ正しい回答が返ってきました。
+![CleanShot 2024-12-22 at 04.08.58@2x](https://devio2024-media.developers.io/image/upload/v1734808336/2024/12/22/wfvxrf95c0t1vkzg2tgy.png)
+
+今度は簡単な可視化をさせてみます。Claude ArtifactsでReactコードが生成されていきます。
+![CleanShot 2024-12-22 at 04.16.37@2x](https://devio2024-media.developers.io/image/upload/v1734808649/2024/12/22/ozkc5kkfgjydntytqmau.png)
+
+グラフが生成されました。時間を絞っているのは1日分だと15分足だとデータ量が多すぎてコード生成が間に合わずクラッシュするためです。Reactのコードなので描画が綺麗ですね。
+![CleanShot 2024-12-22 at 04.18.12@2x](https://devio2024-media.developers.io/image/upload/v1734808708/2024/12/22/mhonsy95wvsigdebrnr9.png)
+
+Claude Artifactsのような仕組みを自前で作るのは大変なので、MCPサーバーでAPIをラップしてClaude Desktopで解析するのは手軽ので良いと思いました。データ量が少なければある程度のことはできそうです。
 
 
-## 動作確認
+## 生成AI(LangGraph)による分析
+
+### 構成図
+
+![architecture_04](https://devio2024-media.developers.io/image/upload/v1734736756/2024/12/21/zpmuylxuun1z9b0dd4te.png)
+
+### 実装
+
+ワークフローは、2つ作ります。
+
+![forecast_by_data](https://devio2024-media.developers.io/image/upload/v1734810411/2024/12/22/dtll3ngzl5qkfv4p6z58.png)
+
+![forecast_by_png](https://devio2024-media.developers.io/image/upload/v1734810416/2024/12/22/czlfybhl6pha2akikl2p.png)
 
 
 
-
-## Tips
-
-### Langsmithで解析
-
-業務だとセルフホストできる`Langfuse`が人気だと思います。個人ユースだとLangsmithの無料枠は大きいのでじゃんじゃん使いましょう。
 
 
 ## さいごに
