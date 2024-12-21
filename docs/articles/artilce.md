@@ -46,7 +46,7 @@ https://github.com/shuntaka9576/smart-home
 
 ### 手法
 
-今回は精度はそこまで気にせずどのようなインプットに対して、どのようなアウトプットが返却されるのか検証します。分析方法は以下の通りです。
+今回は精度は気にせずどのようなインプットに対して、どのようなアウトプットが返却されるのかを確認し、生成AIのエコシステムを体験できることを目的とします。精度の比較は別記事で行いたいと思います。
 
 * 時系列データのプロンプト投入
 * 時系列データの画像投入
@@ -128,7 +128,7 @@ https://github.com/shuntaka9576/smart-home
 10. `[2]Lambda(AIエージェント)` は受け取ったデータを元にBedrockを使いレポートを作成し、`[8]Slack` へ `Webhook(HTTPS POST)` でレポートを`[9]私`に送信
 
 
-項1のIFTTTと項9のSlackはあくまで例です。何らかの発火する概念と受け取る概念があるといいでしょう。IFTTTだと外出時でフックできます。仮置きしています。
+項1のIFTTTと項9のSlackはあくまで例です。何らかの発火する概念と受け取る概念があるといいでしょう。IFTTTだと外出タイミングで発火できます。
 
 Webhookをセキュアに運用する場合、ボディ部を予想されにくい文字列でSHA256ハッシュをつけてHTTPヘッダーにつけるのが良いでしょう。本記事では紹介しません。
 
@@ -197,65 +197,335 @@ AWSの記事では[Wi-SUN USBアダプター RS-WSUHAシリーズ](https://www.r
 
 ## センサーデータ収集実装
 
-### 概要
-
-
 ### 構成図
 
-以下の赤枠部分を実装します。
+赤枠の実装をしていきます。
 
-TODO:
+![architecture_01](https://devio2024-media.developers.io/image/upload/v1734727141/2024/12/21/fnwcegqtqoox6hf6wgg5.png)
 
 ### 実装
 
-#### データベースマイグレーション
+実装の全体感は[github.com/shuntaka9576/smart-home](https://github.com/shuntaka9576/smart-home/tree/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform)を参考にしてください。ポイントを以下に示します。
 
-実装の全体感は[こちら]()を参考にしてください。ポイントを以下に示します。
+#### Supabaseにテーブル作成
 
-データベース設計。今回は一律Floatにしましたが、 **浮動小数点誤差を考慮するとDecimalが推奨** です。(記事を公開したら、マイグレーションします。。)
+まずテーブルを設計します。データ型はFloatにしましたが、 浮動小数点誤差を考慮するとDecimalが推奨です。(記事を公開したら、マイグレーションします。。)
 
-今回使うAPIは以下の2つです。電力量や各種センサーデータの格納をします。やることはシンプルで、[Nature Remo Cloud API](https://developer.nature.global/)を使って、`Nature Remo 3` `Nature Remo E Lite` のデータを定期的に取得し、データベースに書き込みます。
+| フィールド名                     | データ型   | PK | FK | 必須 | その他制約 | デフォルト | 列挙値 | 説明 |
+|----------------------------------|------------|----|----|------|------------|------------|--------|------|
+| id                               | String     | ◯  |    | ◯    | -          | -          | -      |UUID|
+| cumulative_electric_energy       | Float      |    |    | ◯    | -          | -          | -      |積算電力量計測値(kWh)|
+| measured_instantaneous           | Float      |    |    | ◯    | -          | -          | -      |瞬時電力計測値(w)|
+| temperature                      | Float      |    |    | ◯    | -          | -          | -      |気温|
+| humidity                         | Float      |    |    | ◯    | -          | -          | -      |湿度|
+| illuminance                      | Float      |    |    | ◯    | -          | -          | -      |照度|
+| ac_status                        | Boolean    |    |    | ◯    | -          | -          | -      |エアコンステータス|
+| created_at                       | DateTime   |    |    | ◯    | -          | 現在時刻   | -      |作成タイムスタンプ(※1)|
+| updated_at                       | DateTime   |    |    | ◯    | -          | 現在時刻   | -      |作成タイムスタンプ(※1)|
+
+※1
+
+この定義通り、Prismaのスキーマファイルを定義します。
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/prisma/schema.prisma#L1-L23
+
+Supabase上でプロジェクトを作成すると、DBのパスワードが発行されます。接続情報を元にホストマシンから接続。以下の接続先があり `Session pooler` のエンドポイントを使う。
+
+* Direct connection
+* Transaction pooler
+* Session pooler <- を使う
+
+セッションに入れることを確認。今回データベースはデフォルトの `postgres` を使うこととする。
+```bash
+psql "postgresql://postgres.<endpoint>:<password>J@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
+```
+smart-home-data-platformの`.env` に `DATABASE_URL` を設定してマイグレーション
+
+```bash:.env
+DATABASE_URL="postgresql://postgres.<endpoint>:<password>@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
+```
+
+```bash:スキーマのデプロイ
+cd apps/smart-home-data-platform
+
+
+pnpm prisma generate
+pnpm prisma migrate dev --name init
+```
+
+#### アプリケーション実装
+
+アプリの実装でポイントとなるのは基本的にデータ仕様です。今回使うNatureのグローバルAPIのエンドポイントは、以下の2つです。
+
+|パス|用途|
+|---|---|
+|`/1/appliances`|電力量, 空調起動状態|
+|`/1/devices`|気温,湿度,照度|
 
 ```bash
 export NATURE_API_TOKEN="<APIトークン>"
 ```
 
-#### 電力量の取得
-
-```bash
+```bash:リクエスト(/1/appliances)
 curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization: Bearer $NATURE_API_TOKEN" | jq
 ```
 
-```bash
+```json:レスポンス(/1/appliances) ※ 一部
+[
+  {
+    "id": "39c2c7ed-b3d4-48b6-b689-46641334eebe",
+    "device": {
+      "name": "Remo",
+      ...
+    },
+    ...
+    "type": "AC",
+    "nickname": "エアコン",
+    "image": "ico_ac_1",
+    "settings": {
+      "temp": "23",
+      "temp_unit": "c",
+      "mode": "warm",
+      "vol": "2",
+      "dir": "1",
+      "dirh": "still",
+      "button": "", //  <-- 現在エアコンのリモコンを表すため、起動状態を判定可能
+      "updated_at": "2024-12-21T00:30:06Z"
+    },
+    ....
+  },
+  {
+    "id": "55649c02-1cab-47d5-80d6-5af037330dd2",
+    "device": {
+      "name": "Remo E lite",
+      ...
+    },
+    ...
+    "type": "EL_SMART_METER",
+    "nickname": "スマートメーター",
+    "image": "ico_smartmeter",
+    "settings": null,
+    "aircon": null,
+    "signals": [],
+    "smart_meter": {
+      "echonetlite_properties": [ // <-- ここのオブジェクトを電力量算出に利用
+        {
+          "name": "coefficient",
+          "epc": 211,
+          "val": "1",
+          "updated_at": "2024-12-21T08:25:42Z"
+        },
+        {
+          "name": "cumulative_electric_energy_effective_digits",
+          "epc": 215,
+          "val": "6",
+          "updated_at": "2024-12-21T08:25:42Z"
+        },
+        {
+          "name": "normal_direction_cumulative_electric_energy",
+          "epc": 224,
+          "val": "91954",
+          "updated_at": "2024-12-21T08:25:42Z"
+        },
+        {
+          "name": "cumulative_electric_energy_unit",
+          "epc": 225,
+          "val": "1",
+          "updated_at": "2024-12-21T08:25:42Z"
+        },
+        {
+          "name": "reverse_direction_cumulative_electric_energy",
+          "epc": 227,
+          "val": "13",
+          "updated_at": "2024-12-21T08:25:42Z"
+        },
+        {
+          "name": "measured_instantaneous",
+          "epc": 231,
+          "val": "350",
+          "updated_at": "2024-12-21T08:25:43Z"
+        }
+      ]
+    }
+  }
+]
+
+```
+
+```bash:リクエスト(/1/devices)
 curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization: Bearer $NATURE_API_TOKEN" | jq
 ```
 
-NatureのAPIは、ECHONET Liteの仕様で一部値を返却します。Natureさんの[電力データ算出方法](https://developer.nature.global/docs/how-to-calculate-energy-data-from-smart-meter-values/)のドキュメントが非常に参考になりました。
+```json:レスポンス(/1/devices) ※ 一部
+[
+  {
+    "name": "Remo",
+    "id": "f22d512b-92cc-4fef-b7ea-42ba852ef074",
+    ...
+    ],
+    "newest_events": {
+      "hu": {  // 湿度
+        "val": 55,
+        "created_at": "2024-12-21T08:27:13Z"
+      },
+      "il": { // 照度
+        "val": 46,
+        "created_at": "2024-12-21T08:25:07Z"
+      },
+      "mo": { // 人感
+        "val": 1,
+        "created_at": "2024-12-21T08:24:59Z"
+      },
+      "te": { // 気温
+        "val": 25,
+        "created_at": "2024-12-21T08:30:14Z"
+      }
+    },
+    "online": true
+  },
+  {
+    "name": "Remo E lite",
+    ...
+  }
+]
+```
 
-[スマートメーターの各EPCの解説](https://developer.nature.global/docs/how-to-calculate-energy-data-from-smart-meter-values/#%E3%82%B9%E3%83%9E%E3%83%BC%E3%83%88%E3%83%A1%E3%83%BC%E3%82%BF%E3%83%BC%E3%81%AE%E5%90%84epc%E3%81%AE%E8%A7%A3%E8%AA%AC)をより、積算電力量計測値(正方向) `normal_direction_cumulative_electric_energy` と 積算電力量単位 `cumulative_electric_energy_unit` で乗算することで電力量(kWh)が求められます。実数部と単位を分けているのは浮動小数点誤差を考慮した設計によるものだと思われます。
+#### IaC
 
-https://github.com/shuntaka9576/smart-home/blob/52d3da74c0edad6424bea796eb341c4386438646/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L44-L69
+今回はLambdaから書き込むので、Prismaの場合クエリエンジンのバイナリを含める必要があり、少し面倒でした。[drizzle-orm](https://github.com/drizzle-team/drizzle-orm)や[kysely](https://github.com/kysely-org/kysely)なんかもおすすめです。
 
-今回はシンプルに乗算し、その他センサー値をNature Remo 3から取得し、Supabaseへ書き込みます。各種値にはISO8601の時刻がついているので、厳密な時間
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/iac/lib/smart-home-data-platform-resource.ts#L23-L35
+
+LambdaのARM_64アーキテクチャを利用する場合はこちらで指定が必要です。
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/prisma/schema.prisma#L3
+
+
+
+今回は電力量(cumulative_electric_energy)以外は、取得したものをそのままデータベース書き込みます。15分に1度EventBridge経由で実行し、書き込みを行います。それぞれの値に対して書き込み時間がついているので、厳密にやる場合はこの値も考慮した方が良いと思います。今回はほぼニアリアルに更新されるという前提で、15分ごとに書き込んでいます。
+
+書き込み処理は以下の通りです。
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/application/use-cases/store-home-condition-use-case.ts#L1-L19
+
+
+電力量に関しては、`/1/appliances` NatureのAPIは、ECHONET Liteの仕様で一部値を返却します。Natureさんの[電力データ算出方法](https://developer.nature.global/docs/how-to-calculate-energy-data-from-smart-meter-values/)のドキュメントが非常に参考になりました。
+
+[スマートメーターの各EPCの解説](https://developer.nature.global/docs/how-to-calculate-energy-data-from-smart-meter-values/#%E3%82%B9%E3%83%9E%E3%83%BC%E3%83%88%E3%83%A1%E3%83%BC%E3%82%BF%E3%83%BC%E3%81%AE%E5%90%84epc%E3%81%AE%E8%A7%A3%E8%AA%AC)をより、積算電力量計測値(正方向) `normal_direction_cumulative_electric_energy` と 積算電力量単位 `cumulative_electric_energy_unit` で乗算することで電力量(kWh)が求められます。実数部と単位を分けているのは浮動小数点誤差を考慮した設計によるものだと推測します。
+
+積算電力量単位のユーティリティを実装
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L44-L69
+
+
+積算電力量(正方向)と積算電力量単位を乗算しています。JavaScriptの計算誤差を防ぐためにdecimal.jsを使っています。(繰り返しにはなりますが、DBをDecimal型にしてPrisma.Decimalを使うのが良いと思います。)
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L15-L23
 
 
 ### 確認
 
+Supabaseのコンソール画面からデータが取り込まれていることが確認できます。
+
+![CleanShot 2024-12-21 at 17.44.27@2x](https://devio2024-media.developers.io/image/upload/v1734770711/2024/12/21/m12nec3cy5val0mih3z1.png)
 
 ## センサーデータ配信実装
 
+### 構成図
+
+APIGatwayとLambdaのサーバーレス構成です。APIGatwayを使ったのは、APIキーでの認証が手軽にできるためです。
+
+![architecture_02](https://devio2024-media.developers.io/image/upload/v1734727145/2024/12/21/pd0svdremzy2yzavi6ho.png)
+
+### 実装
+
+実装のエントリポイントは[こちら](https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a1409bbbae9c/apps/smart-home-data-platform/src/interfaces/lambda/api-gatway/rest-api-handler.ts)です。
+
+#### アプリケーション実装
+
+`yyyy-MM-dd HH:mm`でクエリパラメータにsinceとuntilを指定して、その期間のデータを取得するようにします。データベースに入っているのは`積算電力量(正方向)`なので、これはほぼずっとカウントアップしていきます。故にある時点とある時点の差が利用した電力量となります。
+
+精度はざっくりにはなりますが、15分ごとの利用料を配列に詰めて返却しています。
+
+https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a1409bbbae9c/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L78-L87
+
+今後N分足、N時間足、日足という感じで動的に計算できるようにしたいですね。
+
+#### IaC
+
+センサーデータ収集実装同様のPrimaのデプロイ設定が必要です。
+
+https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a1409bbbae9c/iac/lib/smart-home-data-platform-resource.ts#L73-L123
+
 
 ### 確認
 
+デプロイしたAPIGatwayにリクエストを送ってデータが取得できることを確認します。
+
+```bash:APIGatwayのエンドポイントとAPIキーをマネジメントコンソールからコピーして設定する
+export SMART_HOME_API_GATEWAY_DOMAIN="" # https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/v1 まで含める
+export SMART_HOME_API_KEY=""
+```
+
+```bash:センサーデータの取得
+curl -X GET \
+  -H "Accept: application/json" \
+  -H "x-api-key: $SMART_HOME_API_KEY" \
+  "$SMART_HOME_API_GATEWAY_DOMAIN/home-condition?since=2024-12-19%2000:00&until=2024-12-19%2001:00"
+```
+
+```json:結果
+{
+  "homeConditions": [
+    {
+      "id": "3caaa05a-92ed-4ba3-955c-b0215750201c",
+      "cumulativeElectricEnergy": 9180.2,
+      "measuredInstantaneous": 94,
+      "temperature": 16,
+      "humidity": 80,
+      "illuminance": 0,
+      "acStatus": false,
+      "createdAt": "2024-12-19T00:00:35.849+09:00",
+      "updatedAt": "2024-12-19T00:00:35.849+09:00",
+      "electricEnergyDelta": 23.9
+    },
+    {
+      "id": "199e2ffd-466c-4f6d-a770-00a5c1d6c710",
+      "cumulativeElectricEnergy": 9180.2,
+      "measuredInstantaneous": 84,
+      "temperature": 16,
+      "humidity": 80,
+      "illuminance": 0,
+      "acStatus": false,
+      "createdAt": "2024-12-19T00:15:36.332+09:00",
+      "updatedAt": "2024-12-19T00:15:36.332+09:00",
+      "electricEnergyDelta": 0
+    },
+    {
+      "id": "52925c69-6dd6-407e-8689-ef65cffb8c01",
+      "cumulativeElectricEnergy": 9180.3,
+      "measuredInstantaneous": 51,
+      "temperature": 15.8,
+      "humidity": 80,
+      "illuminance": 0,
+      "acStatus": false,
+      "createdAt": "2024-12-19T00:30:36.170+09:00",
+      "updatedAt": "2024-12-19T00:30:36.170+09:00",
+      "electricEnergyDelta": 0.1
+    },
+    {
+      "id": "0a9fd4f0-54d8-4098-9b36-300aebd4c769",
+      "cumulativeElectricEnergy": 9180.3,
+      "measuredInstantaneous": 69,
+      "temperature": 15.7,
+      "humidity": 80,
+      "illuminance": 0,
+      "acStatus": false,
+      "createdAt": "2024-12-19T00:45:35.800+09:00",
+      "updatedAt": "2024-12-19T00:45:35.800+09:00",
+      "electricEnergyDelta": 0
+    }
+  ]
+}
+```
+
 本項でセンサーデータの配信ができるようになりました。
 
-
-簡単なスクリプトを書いて、可視化してみた結果は以下の通りです。
-TODO:
-
-
-試しにProphetという時系列モデルで予測してもらった結果は以下の通りです。
-TODO:
 
 
 ## MPCサーバーの実装
@@ -280,27 +550,58 @@ MCPサーバーは別プロセスとして起動し、LLMアプリケーショ�
 
 以下の赤枠部分を実装します。
 
-TODO:
-
+![architecture](https://devio2024-media.developers.io/image/upload/v1734806143/2024/12/22/slwsjijtxef3hvnadabb.png)
 
 ### 実装
 
-項. 電力量や各種センサーデータの配信で実装した`SMART_HOME_API_GATEWAY_DOMAIN` を使います。
+実装は[こちら](https://github.com/shuntaka9576/smart-home/tree/daa4b240adef672f46447ceecc15a1409bbbae9c/apps/smart-home-mcp-server)のディレクトリにあります。
+
+今回はPythonのプロセスとGoのプロセスで標準入出力を使って通信します。[Model Context Protocol サーバーをGoで実装する](https://zenn.dev/masacento/articles/3e91c61f20787b)を参考に実装の略図を書くと以下の通りです。
+
+![mcp_go_model](https://devio2024-media.developers.io/image/upload/v1734806390/2024/12/22/pmalmkgrmrrgwi1nlx3d.png)
+
+
+MCPの`tools/list`が呼び出されたら、以下のJSONを返却し、LLMがFunction calling(Tool Use)が呼び出せるようにします。
+
+`tools/list`のレスポンス箇所
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/tools.json#L1-L91
+
+
+`tools/list`が呼び出し箇所
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/worker.go#L30-L36
+
+MCPの[Tools](https://modelcontextprotocol.io/docs/concepts/tools)仕様を参考に、 nameがlist-home-conditionの場合に、前項で作成したAPIを呼び出してレスポンスを返却するようにしています。
+```
+{
+  name: string;          // Unique identifier for the tool
+  description?: string;  // Human-readable description
+  inputSchema: {         // JSON Schema for the tool's parameters
+    type: "object",
+    properties: { ... }  // Tool-specific parameters
+  }
+}
+```
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/worker.go#L37-L71
+
+
+ゆえに電力量や各種センサーデータの配信で実装した`SMART_HOME_API_GATEWAY_DOMAIN` を使います。
 
 ```bash:.envを作成
 cp .env.local .env
 ```
 
-掲載のコードでは、v1まで必要です。
+掲載のコードでは、v1部分まで必要です。
 ```bash:.env
 SMART_HOME_API_GATEWAY_DOMAIN="https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/v1"
 ```
 
-Goビルド時に引数で値を指定できます。この仕様にしたのは、リポジトリは公開したいが本REST APIは非公開としたかったためです。
+Goビルド時はMakefile経由で`.env` を参照してエンドポイントを埋め込みます。(これはリポジトリを公開する都合上で、公開しない場合やエンドポイントを知られても問題ない場合はハードコードしても良いと思います。これはリリースバージョンのbump upなどでよく使われる手法です。)
 
 ```bash
 make build
 ```
+
+動作確認は、次項でClaude Desktopを使います。
 
 ## Claude Desktop(with 作成したMCPサーバー)で分析してみる
 
@@ -319,7 +620,7 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
       "command": "/Users/shuntaka/repos/github.com/shuntaka9576/smart-home/apps/smart-home-ai-agent/smart-home-mcp-server",
       "args": [],
       "env": {
-        "SMART_HOME_API_KEY": "ss6sbQx2HA8JNdZv4Gzid13riZyA4mJsay3RqL2a"
+        "SMART_HOME_API_KEY": ""
       }
     }
   }
@@ -351,14 +652,7 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
 業務だとセルフホストできる`Langfuse`が人気だと思います。個人ユースだとLangsmithの無料枠は大きいのでじゃんじゃん使いましょう。
 
 
-
-
 ## さいごに
-
-実はTEPCO Webで今回やっているような可視化と予測はWebサービスとして提供されています。偉大ですね。
-
-
-その他書こうと思ったこととして、時系列モデル(Prophet)を使った電力量予測ネタを組み込みたかったのですが、記事のボリューム的に諦めました。別の記事で書こうと思います。
 
 * AIエージェントとして機能としてブラッシュアップしたい
 * MCPサーバーの機能として今回はToolsしか使ってないので、ResourceやPrompts、Samplingも実装しようと思います！

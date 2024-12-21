@@ -91,16 +91,13 @@ npx cdk deploy -c env="dev" dev-smart-home-stack > /dev/null 2>&1
 ```bash
 export SMART_HOME_API_KEY=""
 export SMART_HOME_API_GATEWAY_DOMAIN="" # https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/v1 まで含める
+```
 
+```bash
 curl -X GET \
   -H "Accept: application/json" \
   -H "x-api-key: $SMART_HOME_API_KEY" \
-  "$SMART_HOME_API_GATEWAY_DOMAIN/home-condition"
-
-curl -X GET \
-  -H "Accept: application/json" \
-  -H "x-api-key: $SMART_HOME_API_KEY" \
-  "$SMART_HOME_API_GATEWAY_DOMAIN/home-condition?since=2024-12-12%2000:00&until=2024-12-01%2000:00"
+  "$SMART_HOME_API_GATEWAY_DOMAIN/home-condition?since=2024-12-19%2000:00&until=2024-12-19%2001:00"
 ```
 
 レポート生成API

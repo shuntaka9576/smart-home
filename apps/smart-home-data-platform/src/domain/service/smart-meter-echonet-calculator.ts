@@ -86,7 +86,6 @@ export const convertToHomeConditionForUser = (
     }
     delta = delta.toDecimalPlaces(2);
 
-    // JSTへの変換処理
     const createdAtJST = DateTime.fromJSDate(condition.createdAt, {
       zone: 'utc',
     })
