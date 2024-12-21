@@ -142,11 +142,11 @@ https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html
 1. Webで申請
 2. パスワードがメールにて送付され、認証IDが郵送される
 
-Webでの申請の注意点配下です。
+Webでの申請の注意点は以下の通りです
 * 供給地点番号を用意する
 * 住所に契約している電力会社の託送上の住所で書く必要があり(私は建物名を抜かしてしまい、1度照合結果相違で再申し込みとなりました)
 
-私は東京電力で契約しているのTEPCO Webから両方の情報を確認することできました。
+私は東京電力で契約しているのでTEPCO Webから両方の情報を確認することができました。
 
 東京在住で12/3(火)に申し込み12/5(木)にパスワード、12/9(月)には認証IDが郵送されました。参考までに。
 
@@ -690,7 +690,7 @@ API問い合わせはFunction Calling(Tool Use)を統一のIFにしたTool Calli
 
 https://zenn.dev/pharmax/articles/1b351b730eef61
 
-また`create_react_agent`は、Toolの利用すべきかを判断し、実行をしてくれます。これは普通に実装するとツール利用の有無の判定とツールの実行処理を自前で書くコストがなくなり非常に便利です。詳しくは以下をご確認ください。
+また`create_react_agent`は、Toolの利用すべきかを判断し、実行をしてくれます。ツール利用の有無の判定とツールの実行処理を自前で書くコストがなくなり**非常に便利**です。詳しくは以下をご確認ください。
 https://zenn.dev/pharmax/articles/1b351b730eef61#langgraph%EF%BC%88create_react_agent%EF%BC%89
 
 `create_react_agent`実装は以下の通りです。
