@@ -7,6 +7,7 @@ published: false
 ---
 
 
+
 ## はじめに
 
 製造業との絡み的には、電力消費の可視化、分析、予測はよくあるテーマです。本記事では、まず身近な自宅を例に試してみることにしました。
@@ -39,17 +40,17 @@ https://github.com/shuntaka9576/smart-home
 
 ### 概要
 
-以下2つを試します
+以下2つを試します。まずはアウトプットを出すだけで精緻さは求めません。
 
 * 電気料金の予測
 * 電力量とその他指標の関連分析
 
 ### 手法
 
-今回は精度は気にせずどのようなインプットに対して、どのようなアウトプットが返却されるのかを確認し、生成AIのエコシステムを体験できることを目的とします。精度の比較は別記事で行いたいと思います。
+どのようなインプットに対して、どのようなアウトプットが返却されるのかを確認し、あくまで生成AIのエコシステムを体験できることを目的とします。精度の比較は別記事で行いたいと思います。
 
-* 時系列データのプロンプト投入
-* 時系列データの画像投入
+* 時系列データをインプットにする
+* 時系列データの画像をインプットにする
 
 また時系列データはMCPで取得できるようにするので、Claude Desktopを使った分析も行います。
 
@@ -84,7 +85,6 @@ https://github.com/shuntaka9576/smart-home
 
 ![architecture](https://devio2024-media.developers.io/image/upload/v1734727155/2024/12/21/n85ip5c2o1vqnavc9yvc.png)
 
-
 #### データ収集
 
 まずはセンサーデータ(電力量,気温,湿度,照度,エアコンの起動状態)をデータ基盤(収集)で貯めます。今回使用しているNatureの機器で取得したデータは、NatureのクラウドAPIで取得できます。
@@ -99,17 +99,16 @@ https://github.com/shuntaka9576/smart-home
 
 ![architecture_02](https://devio2024-media.developers.io/image/upload/v1734727145/2024/12/21/pd0svdremzy2yzavi6ho.png)
 
-1. `[1]APIGatway`がHTTPリクエストを受け取る(期間指定since=yyyy-MM-dd HH:mm&until=yyyy-MM-dd HH:mm)
+1. `[1]APIGateway`がHTTPリクエストを受け取る(期間指定since=yyyy-MM-dd HH:mm&until=yyyy-MM-dd HH:mm)
 2. `[2]Lambda(センサーデータ配信)`が期間に応じたセンサーデーターを`[3]Supabase`に要求し受け取る
-4. `[2]Lambda`から`[1]APIGatway` に返却し、AIエージェントアプリやClaude Desktopへセンサーデータを返却
-
+4. `[2]Lambda`から`[1]APIGateway` に返却し、AIエージェントアプリやClaude Desktopへセンサーデータを返却
 
 #### 生成AI(Claude Desktop with MCP)による分析
 
 ![architecture_03](https://devio2024-media.developers.io/image/upload/v1734727149/2024/12/21/drgo3eqzjjy6dbievcke.png)
 
 1. `[2]Claude Desktop` のコンフィグ `[3]MCPサーバー` の設定
-2. `[1]私` が `[2]Claude Desktop` を使い `[3]MCPサーバー` を経由し、`[4]APIGatway(センサーデータ配信)` からデータを取得
+2. `[1]私` が `[2]Claude Desktop` を使い `[3]MCPサーバー` を経由し、`[4]APIGateway(センサーデータ配信)` からデータを取得
 3. `[2]Claude Desktop` は項2で取得したデータを解析し、`[1]私` へ返却
 
 #### 生成AI(LangGraph)による分析
@@ -118,8 +117,8 @@ https://github.com/shuntaka9576/smart-home
 
 1. `[1]IFTTT` は外出を検知し、`[2]Lambda(AIエージェント)` へ `Webhook(HTTPS POST)` で機能実行を要求
 2. `[2]Lambda(AIエージェント)` は、起動したLangGraphのワークフローを元に `[4]MCPサーバー` へ `JSON RPC 2.0 on 標準入力` でセンサーデータを要求
-3. `[4]MCPサーバー` は、`[5]APIGatway(センサーデータ配信)` へ `HTTPS` でセンサーデータを要求
-4. `[5]APIGatway(センサーデータ配信)` は、 `[5]Lambda(センサーデータ配信)` へ `AWS内部通信` でセンサーデータを要求
+3. `[4]MCPサーバー` は、`[5]APIGateway(センサーデータ配信)` へ `HTTPS` でセンサーデータを要求
+4. `[5]APIGateway(センサーデータ配信)` は、 `[5]Lambda(センサーデータ配信)` へ `AWS内部通信` でセンサーデータを要求
 5. `[5]Lambda(センサーデータ配信)` へ `[6]Supabase(センサーデータ保存)` へ センサーデータを要求
 6. 項5の通信の戻り
 7. 項4の通信の戻り
@@ -127,11 +126,9 @@ https://github.com/shuntaka9576/smart-home
 9. 項2の通信の戻り
 10. `[2]Lambda(AIエージェント)` は受け取ったデータを元にBedrockを使いレポートを作成し、`[8]Slack` へ `Webhook(HTTPS POST)` でレポートを`[9]私`に送信
 
-
-項1のIFTTTと項9のSlackはあくまで例です。何らかの発火する概念と受け取る概念があるといいでしょう。IFTTTだと外出タイミングで発火できます。
+項1のIFTTTはあくまで例なので実装はないです。何らかの発火する概念が必要です。IFTTTだと外出タイミングで発火でき今回のユースケースと合っているかなと感じています。
 
 Webhookをセキュアに運用する場合、ボディ部を予想されにくい文字列でSHA256ハッシュをつけてHTTPヘッダーにつけるのが良いでしょう。本記事では紹介しません。
-
 
 ## スマートメーターからデータを取得する前準備
 
@@ -160,7 +157,6 @@ Webでの申請の注意点配下です。
 ### HEMS機器の準備
 
 AWSの記事では[Wi-SUN USBアダプター RS-WSUHAシリーズ](https://www.ratocsystems.com/products/wisun/usb-wisun/rs-wsuha/)が紹介されていましたが、[Nature Remo E lite](https://shop.nature.global/products/nature-remo-e-lite?srsltid=AfmBOophBk-D0lMmFneXFuJcOTBBWrcNufVktIVmOucfBRx72DythdPu)を使うことにしました。ラズパイは短期の検証では良いですが、運用面や料金面(AWS IoT)を考慮した結果です。ここら辺は好みですので、エッジIoTを体感したい人は冒頭のAWSの記事をベースにセットアップするのが良いと思います。
-
 
 ### Nature Remo E liteの設定
 
@@ -194,7 +190,6 @@ AWSの記事では[Wi-SUN USBアダプター RS-WSUHAシリーズ](https://www.r
 
 :::
 
-
 ## センサーデータ収集実装
 
 ### 構成図
@@ -205,9 +200,9 @@ AWSの記事では[Wi-SUN USBアダプター RS-WSUHAシリーズ](https://www.r
 
 ### 実装
 
-実装の全体感は[github.com/shuntaka9576/smart-home](https://github.com/shuntaka9576/smart-home/tree/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform)を参考にしてください。ポイントを以下に示します。
+実装の全体感は[github.com/shuntaka9576/smart-home](https://github.com/shuntaka9576/smart-home/tree/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform)を参考にしてください。
 
-#### Supabaseにテーブル作成
+#### Supabaseにテーブルを作成
 
 まずテーブルを設計します。データ型はFloatにしましたが、 浮動小数点誤差を考慮するとDecimalが推奨です。(記事を公開したら、マイグレーションします。。)
 
@@ -246,7 +241,6 @@ DATABASE_URL="postgresql://postgres.<endpoint>:<password>@aws-0-ap-northeast-1.p
 
 ```bash:スキーマのデプロイ
 cd apps/smart-home-data-platform
-
 
 pnpm prisma generate
 pnpm prisma migrate dev --name init
@@ -389,22 +383,10 @@ curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization:
 ]
 ```
 
-#### IaC
-
-今回はLambdaから書き込むので、Prismaの場合クエリエンジンのバイナリを含める必要があり、少し面倒でした。[drizzle-orm](https://github.com/drizzle-team/drizzle-orm)や[kysely](https://github.com/kysely-org/kysely)なんかもおすすめです。
-
-https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/iac/lib/smart-home-data-platform-resource.ts#L23-L35
-
-LambdaのARM_64アーキテクチャを利用する場合はこちらで指定が必要です。
-https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/prisma/schema.prisma#L3
-
-
-
 今回は電力量(cumulative_electric_energy)以外は、取得したものをそのままデータベース書き込みます。15分に1度EventBridge経由で実行し、書き込みを行います。それぞれの値に対して書き込み時間がついているので、厳密にやる場合はこの値も考慮した方が良いと思います。今回はほぼニアリアルに更新されるという前提で、15分ごとに書き込んでいます。
 
 書き込み処理は以下の通りです。
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/application/use-cases/store-home-condition-use-case.ts#L1-L19
-
 
 電力量に関しては、`/1/appliances` NatureのAPIは、ECHONET Liteの仕様で一部値を返却します。Natureさんの[電力データ算出方法](https://developer.nature.global/docs/how-to-calculate-energy-data-from-smart-meter-values/)のドキュメントが非常に参考になりました。
 
@@ -413,9 +395,18 @@ https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328
 積算電力量単位のユーティリティを実装
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L44-L69
 
-
 積算電力量(正方向)と積算電力量単位を乗算しています。JavaScriptの計算誤差を防ぐためにdecimal.jsを使っています。(繰り返しにはなりますが、DBをDecimal型にしてPrisma.Decimalを使うのが良いと思います。)
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L15-L23
+
+
+#### IaC
+
+今回はLambdaから書き込むので、Prismaの場合クエリエンジンのバイナリを含める必要があり、少し面倒でした。[drizzle-orm](https://github.com/drizzle-team/drizzle-orm)や[kysely](https://github.com/kysely-org/kysely)なんかもおすすめです。
+
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/iac/lib/smart-home-data-platform-resource.ts#L23-L35
+
+LambdaのARM_64アーキテクチャを利用する場合はこちらで指定が必要です。
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/prisma/schema.prisma#L3
 
 
 ### 確認
@@ -428,7 +419,7 @@ Supabaseのコンソール画面からデータが取り込まれていること
 
 ### 構成図
 
-APIGatwayとLambdaのサーバーレス構成です。APIGatwayを使ったのは、APIキーでの認証が手軽にできるためです。
+APIGatewayとLambdaのサーバーレス構成です。APIGatewayを使ったのは、APIキーでの認証が手軽にできるためです。
 
 ![architecture_02](https://devio2024-media.developers.io/image/upload/v1734727145/2024/12/21/pd0svdremzy2yzavi6ho.png)
 
@@ -436,7 +427,7 @@ APIGatwayとLambdaのサーバーレス構成です。APIGatwayを使ったの�
 
 実装のエントリポイントは[こちら](https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a1409bbbae9c/apps/smart-home-data-platform/src/interfaces/lambda/api-gatway/rest-api-handler.ts)です。
 
-#### アプリケーション実装
+#### アプリケーション
 
 `yyyy-MM-dd HH:mm`でクエリパラメータにsinceとuntilを指定して、その期間のデータを取得するようにします。データベースに入っているのは`積算電力量(正方向)`なので、これはほぼずっとカウントアップしていきます。故にある時点とある時点の差が利用した電力量となります。
 
@@ -452,12 +443,11 @@ https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a140
 
 https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a1409bbbae9c/iac/lib/smart-home-data-platform-resource.ts#L73-L123
 
-
 ### 確認
 
-デプロイしたAPIGatwayにリクエストを送ってデータが取得できることを確認します。
+デプロイしたAPIGatewayにリクエストを送ってデータが取得できることを確認します。
 
-```bash:APIGatwayのエンドポイントとAPIキーをマネジメントコンソールからコピーして設定する
+```bash:APIGatewayのエンドポイントとAPIキーをマネジメントコンソールからコピーして設定する
 export SMART_HOME_API_GATEWAY_DOMAIN="" # https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/v1 まで含める
 export SMART_HOME_API_KEY=""
 ```
@@ -526,9 +516,7 @@ curl -X GET \
 
 本項でセンサーデータの配信ができるようになりました。
 
-
-
-## MPCサーバーの実装
+## MCPサーバーの実装
 
 ### 概要
 
@@ -545,10 +533,9 @@ MCPサーバーは別プロセスとして起動し、LLMアプリケーショ�
 [^1]: 今回はエコシステムを試す目的もあるのである種無理やりこのレイヤーを噛ませています。公式のSDKはPythonとTypeScriptなのでそちらを使った方が楽に実装できると思います。JSの場合、バンドルが可能ですが、Node自体に依存(ただ、NodeのSingle executable appやdeno compileだとランタイムが同梱されるため回避できます)。Pythonの場合、Pythonそのものとライブラリに依存
 。シングルバイナリになるRustやZigなども良い選択肢だと思います。
 
-
 ### 構成図
 
-以下の赤枠部分を実装します。
+以下の赤枠部分を実装します。ClaudeDesktopではローカルマシンに入れます。クラウドで動かす際は、AIエージェントのコンテナの中に入れて起動します。
 
 ![architecture](https://devio2024-media.developers.io/image/upload/v1734806143/2024/12/22/slwsjijtxef3hvnadabb.png)
 
@@ -560,12 +547,10 @@ MCPサーバーは別プロセスとして起動し、LLMアプリケーショ�
 
 ![mcp_go_model](https://devio2024-media.developers.io/image/upload/v1734806390/2024/12/22/pmalmkgrmrrgwi1nlx3d.png)
 
-
 MCPの`tools/list`が呼び出されたら、以下のJSONを返却し、LLMがFunction calling(Tool Use)が呼び出せるようにします。
 
 `tools/list`のレスポンス箇所
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/tools.json#L1-L91
-
 
 `tools/list`が呼び出し箇所
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/worker.go#L30-L36
@@ -582,7 +567,6 @@ MCPの[Tools](https://modelcontextprotocol.io/docs/concepts/tools)仕様を参�
 }
 ```
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-mcp-server/worker.go#L37-L71
-
 
 ゆえに電力量や各種センサーデータの配信で実装した`SMART_HOME_API_GATEWAY_DOMAIN` を使います。
 
@@ -614,7 +598,7 @@ make build
 
 ### Claude Desktopのコンフィグの設定
 
-APIGatwayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
+APIGatewayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
 
 ```bash
 nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -627,7 +611,7 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
       "command": "/Users/shuntaka/repos/github.com/shuntaka9576/smart-home/apps/smart-home-ai-agent/smart-home-mcp-server",
       "args": [],
       "env": {
-        "SMART_HOME_API_KEY": "<APIGatwayのAPIキー>" // <- ここに入れてね
+        "SMART_HOME_API_KEY": "<APIGatewayのAPIキー>" // <- ここに入れてね
       }
     }
   }
@@ -651,7 +635,6 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
 [{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":94,"temperature":18.1,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:00:36.027+09:00","updatedAt":"2024-12-22T00:00:36.027+09:00","electricEnergyDelta":40.3},{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":98,"temperature":18.1,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:15:36.145+09:00","updatedAt":"2024-12-22T00:15:36.145+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.6,"measuredInstantaneous":68,"temperature":17.9,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:30:35.874+09:00","updatedAt":"2024-12-22T00:30:35.874+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":86,"temperature":17.8,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T00:45:35.95+09:00","updatedAt":"2024-12-22T00:45:35.95+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":222,"temperature":17.8,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:00:36.108+09:00","updatedAt":"2024-12-22T01:00:36.108+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.7,"measuredInstantaneous":222,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:15:35.916+09:00","updatedAt":"2024-12-22T01:15:35.916+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.8,"measuredInstantaneous":102,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:30:35.783+09:00","updatedAt":"2024-12-22T01:30:35.783+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.8,"measuredInstantaneous":151,"temperature":17.7,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T01:45:35.885+09:00","updatedAt":"2024-12-22T01:45:35.885+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":130,"temperature":17.6,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:00:36.169+09:00","updatedAt":"2024-12-22T02:00:36.169+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":100,"temperature":17.4,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:15:36.241+09:00","updatedAt":"2024-12-22T02:15:36.241+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":100,"temperature":17.3,"humidity":71,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:30:36.118+09:00","updatedAt":"2024-12-22T02:30:36.118+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9196.9,"measuredInstantaneous":89,"temperature":17.2,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T02:45:35.934+09:00","updatedAt":"2024-12-22T02:45:35.934+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":86,"temperature":17,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:00:36.212+09:00","updatedAt":"2024-12-22T03:00:36.212+09:00","electricEnergyDelta":0.1},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":86,"temperature":16.9,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:15:35.829+09:00","updatedAt":"2024-12-22T03:15:35.829+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197,"measuredInstantaneous":81,"temperature":16.8,"humidity":72,"illuminance":0,"acStatus":false,"createdAt":"2024-12-22T03:30:35.803+09:00","updatedAt":"2024-12-22T03:30:35.803+09:00","electricEnergyDelta":0},{"cumulativeElectricEnergy":9197.2,"measuredInstantaneous":180,"temperature":17.6,"humidity":73,"illuminance":40,"acStatus":true,"createdAt":"2024-12-22T03:45:36.216+09:00","updatedAt":"2024-12-22T03:45:36.216+09:00","electricEnergyDelta":0.2},{"cumulativeElectricEnergy":9197.2,"measuredInstantaneous":553,"temperature":18.7,"humidity":72,"illuminance":40,"acStatus":true,"createdAt":"2024-12-22T04:00:35.942+09:00","updatedAt":"2024-12-22T04:00:35.942+09:00","electricEnergyDelta":0}]
 :::
 
-
 LLMは単純な計算処理が苦手です。先ほどの結果には間違いがあります。なので再度問い合わせたところ正しい回答が返ってきました。
 ![CleanShot 2024-12-22 at 04.08.58@2x](https://devio2024-media.developers.io/image/upload/v1734808336/2024/12/22/wfvxrf95c0t1vkzg2tgy.png)
 
@@ -661,8 +644,13 @@ LLMは単純な計算処理が苦手です。先ほどの結果には間違い�
 グラフが生成されました。時間を絞っているのは1日分だと15分足だとデータ量が多すぎてコード生成が間に合わずクラッシュするためです。Reactのコードなので描画が綺麗ですね。
 ![CleanShot 2024-12-22 at 04.18.12@2x](https://devio2024-media.developers.io/image/upload/v1734808708/2024/12/22/mhonsy95wvsigdebrnr9.png)
 
-Claude Artifactsのような仕組みを自前で作るのは大変なので、MCPサーバーでAPIをラップしてClaude Desktopで解析するのは手軽ので良いと思いました。データ量が少なければある程度のことはできそうです。
+ダッシュボードみたいなものも作れますね。
+![CleanShot 2024-12-19 at 08.50.03@2x](https://devio2024-media.developers.io/image/upload/v1734813121/2024/12/22/ohdsm8zi8goezsmvey5c.png)
 
+15度下回ると暖房をつけるといった人によっては気付けないような部分も面白いです。
+![CleanShot 2024-12-19 at 08.53.13@2x](https://devio2024-media.developers.io/image/upload/v1734813021/2024/12/22/kgaxlbh0n39u9spjclpm.png)
+
+Claude Artifactsのような仕組みを自前で作るのは大変なので、MCPサーバーでAPIをラップしてClaude Desktopで解析するのは手軽ので良いと思いました。データ量が少なければある程度のことはできそうです。
 
 ## 生成AI(LangGraph)による分析
 
@@ -670,25 +658,110 @@ Claude Artifactsのような仕組みを自前で作るのは大変なので、M
 
 ![architecture_04](https://devio2024-media.developers.io/image/upload/v1734736756/2024/12/21/zpmuylxuun1z9b0dd4te.png)
 
-### 実装
+LangGraphとはLLM (Lagre Language Models; 大規模言語モデル)を使用した、ステートフルなエージェントやワークフローを作成するためのライブラリです。個人的にはLangSmithと簡単に連携できるので、ワークフローのデバックやトラブルシュートに便利です。
 
-ワークフローは、2つ作ります。
+### IaC
+
+FastAPIをLambda+LWA構成でホスティングします。15分間は生成に使えます。LWAは今後ストリーミングに対応したい場合やECSに載せ替えたい場合でも融通が効きます。前述したGoのMCPサーバーのビルドもこの中でやります。
+
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-ai-agent/Dockerfile#L1-L36
+
+
+### 実装方針
+
+LangGraphのワークフローは2つ作ります。実際にアプリを作るなら両方渡してもいいですし、ワークフローは1つで良いと思います。説明や検証のため今回はこの構成をとっています。
+
+* 時系列データをインプットにする
+* 時系列データの画像をインプットにする
+
+モデルはこちらを利用します。
+
+https://github.com/shuntaka9576/smart-home/blob/95b934a59e9235f3d00e4d49735eafc5ef10fdb6/apps/smart-home-ai-agent/src/agent/common.py#L4
+
+### 時系列データをインプットにする場合
 
 ![forecast_by_data](https://devio2024-media.developers.io/image/upload/v1734810411/2024/12/22/dtll3ngzl5qkfv4p6z58.png)
 
+`forecast_electric_energy_by_data_node`は、今月の電気料金を予測を、時系列データを元に行います。プロンプトは以下の通りです。過去の明細(10月,11月)はプロンプトで持たせています。
+
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-ai-agent/src/agent/prompt/common.py#L29-L57
+
+API問い合わせはFunction Calling(Tool Use)を統一のIFにしたTool Callingを使います。
+
+https://zenn.dev/pharmax/articles/1b351b730eef61
+
+また`create_react_agent`は、Toolの利用すべきかを判断し、実行をしてくれます。これは普通に実装するとツール利用の有無の判定とツールの実行処理を自前で書くコストがなくなり非常に便利です。詳しくは以下をご確認ください。
+https://zenn.dev/pharmax/articles/1b351b730eef61#langgraph%EF%BC%88create_react_agent%EF%BC%89
+
+`create_react_agent`実装は以下の通りです。
+https://github.com/shuntaka9576/smart-home/blob/95b934a59e9235f3d00e4d49735eafc5ef10fdb6/apps/smart-home-ai-agent/src/agent/workflows/forecast_by_data/forecast_electric_energy_by_data_node.py#L1-L34
+
+mcp_sessionからToolsを呼び出して、`create_react_agent`に渡しています。これでセンサーデータの取得をLLM側に行ってくれます。
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-ai-agent/src/agent/workflows/forecast_by_data/forecast_electric_energy_by_data_node.py#L17
+
+`adjutmet_message_for_slack_node` では出力されたレポートをSlackライクのメッセージに変換します。プロンプトは以下の通りです。
+
+https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-ai-agent/src/agent/workflows/common/adjutmet_message_for_slack_node.py#L19-L22
+
+こちらを実行します。実行すると以下のような結果が得られました。Slack向けに整形させたので、emojiを使ってみやすい形になっています。
+
+![CleanShot 2024-12-22 at 05.08.59@2x](https://devio2024-media.developers.io/image/upload/v1734811761/2024/12/22/dvsmjvraybdbv8docp9t.png)
+
+実際のグラフデータと比較してみますが、やはりレポート内容は一般的な内容に終始しており、まだ入力データやプロンプトの見直しが必要だなと感じました。データ量が増えてくるとより料金試算のロジックが納得しやすいものになりそうです。
+![tmphuxyqmdh](https://devio2024-media.developers.io/image/upload/v1734812742/2024/12/22/qinit2ncaahcb1f7tfxm.png)
+
+LangSmithのメトリクスデータを確認します。
+
+![CleanShot 2024-12-22 at 05.11.33@2x](https://devio2024-media.developers.io/image/upload/v1734811929/2024/12/22/z7imtoa5mser1g7mpcvd.png)
+
+詳しくみるとセンサーデータの取得がTool Callingで行われていることが確認できます。
+![CleanShot 2024-12-22 at 05.13.24@2x](https://devio2024-media.developers.io/image/upload/v1734812066/2024/12/22/hsauj5chy3ith1rsdura.png)
+
+### 時系列データの画像をインプットにする場合
+
+前項のやり方ですと、トークンサイズの問題があるので、画像を使います。
+
 ![forecast_by_png](https://devio2024-media.developers.io/image/upload/v1734810416/2024/12/22/czlfybhl6pha2akikl2p.png)
 
+| Node Name                             | Explanation                                                                                   |
+|---------------------------------------|-----------------------------------------------------------------------------------------------|
+| `get_sensor_duration_node`            | 明細データを元にグラフ作る期間をLLMに生成してもらう                           |
+| `gen_sensor_data_graph_node`          | 前ノードの期間を元にグラフを生成(LLMは使いません)                   |
+| `forecast_electric_energy_by_png_node`| 前ノードの画像を元にLLMに予測         |
+| `adjustmet_message_for_slack_node`    | 前項どのようにSlackメッセージにLLMで整形       |
 
+Slackにレポートと生成した画像の両方を送ってもらいます。
+https://github.com/shuntaka9576/smart-home/blob/95b934a59e9235f3d00e4d49735eafc5ef10fdb6/apps/smart-home-ai-agent/src/application/use_case/create_electric_energy_report_use_case.py?#L21-L22
 
+結果は以下の通りです。
 
+レポート
+![CleanShot 2024-12-22 at 05.26.33@2x](https://devio2024-media.developers.io/image/upload/v1734812814/2024/12/22/m8wqs2f0el8jaikjrxhg.png)
+
+インプットの画像(拡大)
+![tmphuxyqmdh](https://devio2024-media.developers.io/image/upload/v1734812742/2024/12/22/qinit2ncaahcb1f7tfxm.png)
+
+こちらもある程度傾向を掴んでいるように見えます。
+
+LangSmithのメトリクスデータを確認します。
+
+![CleanShot 2024-12-22 at 05.37.20@2x](https://devio2024-media.developers.io/image/upload/v1734813506/2024/12/22/c5anfew97cwr9cllextj.png)
 
 ## さいごに
 
-* AIエージェントとして機能としてブラッシュアップしたい
+今回きっとMLでやるのが正解なんだろうなというところを簡易分析という形で生成AIでやってみました。短い期間であればある程度信頼性のある傾向を出力してくれるので利用価値が高そうだなと思いました。
+
+また今後Claude DesktopのようなLLMクライアントが高度化してくるとMCPは重要だなと思いました。連携さえしてしまえば個人的なデータもサブスク料金内で自由に解析ができるため、便利です。他のベンダーも追従するといいですね。
+
+今後やってみたいことは以下の通りです。
+
+* アウトプットの検証(今回一番やらないといけないところでしたが、力尽きました、、)
 * MCPサーバーの機能として今回はToolsしか使ってないので、ResourceやPrompts、Samplingも実装しようと思います！
+* Pandas Dataframe Agentを使った自動生成コードによる解析(今回のようなデータ量が多い場合でも比較的トークン数少なめで柔軟に解析可能)
 
-普段Pythonを書かないので、なかなか手間取りましたが、少し仲良くなれたらと思います！！
+実際説明しきれていない部分はいくつかあります。ただ公開していないコードはないので、リポジトリを見れば同じものは作れると思います。
 
+何かあれば@shuntaka_jpまでお願いします。
 
 ## 参考資料
 
