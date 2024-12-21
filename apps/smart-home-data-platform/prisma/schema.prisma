@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model HomeCondition {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  cumulativeElectricEnergy Float    @map("cumulative_electric_energy")
+  measuredInstantaneous    Float    @map("measured_instantaneous")
+  temperature              Float    @map("temperature")
+  humidity                 Float    @map("humidity")
+  illuminance              Float    @map("illuminance")
+  acStatus                 Boolean  @map("ac_status")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("home_condition")
+}

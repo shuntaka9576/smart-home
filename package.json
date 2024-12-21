@@ -1,0 +1,32 @@
+{
+  "name": "smart-home",
+  "version": "0.1.0",
+  "scripts": {
+    "deps": "pnpm install && pnpm --recursive --if-present deps",
+    "build": "pnpm --recursive --if-present build",
+    "watch": "pnpm --recursive --if-present watch",
+    "lint": "pnpm run /lint:.*/",
+    "lint:ws": "pnpm --recursive --if-present lint",
+    "lint:check": "biome check .",
+    "lint:spell": "cspell lint . --cache --gitignore",
+    "fix": "pnpm run /fix:.*/",
+    "fix:ws": "pnpm --recursive --if-present fix",
+    "fix:root": "biome check . --write",
+    "dev": "pnpm --recursive --if-present dev"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "npm": "use pnpm please❤️ ",
+    "yarn": "use pnpm please❤️ ",
+    "pnpm": ">=9.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@dotenvx/dotenvx": "1.29.0",
+    "aws-cdk": "2.172.0",
+    "cspell": "8.16.1",
+    "tsx": "4.19.2",
+    "turbo": "2.3.3",
+    "typescript": "5.7.2"
+  }
+}

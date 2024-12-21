@@ -1,0 +1,91 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "list-home-condition",
+        "description": "指定された期間の家庭内環境データを取得します。期間はJSTでyyyy-MM-dd HH:mmの形式で指定してください。",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "since": {
+              "type": "string",
+              "description": "取得開始日時（例: 2024-12-11 00:00）",
+              "format": "yyyy-MM-dd HH:mm"
+            },
+            "until": {
+              "type": "string",
+              "description": "取得終了日時（例: 2024-12-11 23:59）",
+              "format": "yyyy-MM-dd HH:mm"
+            }
+          },
+          "required": ["since", "until"]
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "homeConditions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cumulativeElectricEnergy": {
+                    "type": "number",
+                    "description": "累積電力量"
+                  },
+                  "measuredInstantaneous": {
+                    "type": "number",
+                    "description": "瞬時電力量"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "description": "温度"
+                  },
+                  "humidity": {
+                    "type": "number",
+                    "description": "湿度"
+                  },
+                  "illuminance": {
+                    "type": "number",
+                    "description": "照度"
+                  },
+                  "acStatus": {
+                    "type": "boolean",
+                    "description": "エアコンのON, OFF"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "yyyy-MM-dd HH:mm",
+                    "description": "作成日時"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "yyyy-MM-dd HH:mm",
+                    "description": "更新日時"
+                  },
+                  "electricEnergyDelta": {
+                    "type": "number",
+                    "description": "電力量の変化量"
+                  }
+                },
+                "required": [
+                  "cumulativeElectricEnergy",
+                  "measuredInstantaneous",
+                  "temperature",
+                  "humidity",
+                  "illuminance",
+                  "acStatus",
+                  "createdAt",
+                  "updatedAt",
+                  "electricEnergyDelta"
+                ]
+              }
+            }
+          },
+          "required": ["homeConditions"]
+        }
+      }
+    ]
+  }
+}

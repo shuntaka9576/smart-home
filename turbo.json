@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build-doc": {
+      "dependsOn": ["^build-doc"],
+      "outputs": ["docs/spec-site/build/html/**"]
+    },
+    "assets#build-doc": {},
+    "spec-site#build-doc": {
+      "dependsOn": ["assets#build-doc"]
+    }
+  }
+}

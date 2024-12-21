@@ -1,0 +1,15 @@
+{
+  "name": "smart-home-ai-agent",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "dotenvx run -f .env -- uv run uvicorn src.main:app --reload",
+    "lint": "pnpm run /lint:.*/",
+    "lint:check": "biome check .",
+    "lint:type": "uv run ruff check .",
+    "lint:spell": "cspell lint . --cache --gitignore",
+    "fix": "biome check . --write",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

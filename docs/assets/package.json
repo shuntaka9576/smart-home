@@ -1,0 +1,10 @@
+{
+  "name": "assets",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build-doc": "/Applications/draw.io.app/Contents/MacOS/draw.io -xf png -o ../spec-site/source/img/architecture.png 01_architecture.drawio.png && /Applications/draw.io.app/Contents/MacOS/draw.io -xf png -o ../spec-site/source/img/mcp_go_model.png 02_mcp_go_model.drawio.png"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

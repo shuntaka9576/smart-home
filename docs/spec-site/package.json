@@ -1,0 +1,13 @@
+{
+  "name": "spec-site",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deps": "uv sync",
+    "watch": "uv run sphinx-autobuild source build",
+    "fix": "uv run ruff format",
+    "build-doc": "uv run sphinx-build -M html \"source\" \"build\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

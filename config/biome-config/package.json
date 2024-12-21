@@ -1,0 +1,9 @@
+{
+  "name": "@smart-home/biome-config",
+  "version": "0.1.0",
+  "scripts": {
+    "check": "echo 'no settings'",
+    "fix": "echo 'no settings'",
+    "test": "echo 'no settings'"
+  }
+}

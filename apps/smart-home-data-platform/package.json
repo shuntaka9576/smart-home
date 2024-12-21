@@ -1,0 +1,27 @@
+{
+  "name": "smart-home-data-platform",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "lint": "pnpm run /lint:.*/",
+    "lint:check": "biome check .",
+    "lint:type": "tsc --noEmit",
+    "lint:spell": "cspell lint . --cache --gitignore",
+    "fix": "biome check . --write",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.0.1",
+    "decimal.js": "10.4.3",
+    "hono": "4.6.13",
+    "luxon": "3.5.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@hono/node-server": "1.13.7",
+    "@types/luxon": "3.4.2",
+    "@types/node": "22.10.2",
+    "prisma": "6.0.1",
+    "vitest": "2.1.8"
+  }
+}

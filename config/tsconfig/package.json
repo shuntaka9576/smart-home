@@ -1,0 +1,11 @@
+{
+  "name": "@smart-home/tsconfig",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "pnpm run /lint:.*/",
+    "lint:check": "biome check .",
+    "lint:spell": "cspell lint . --cache --gitignore",
+    "fix": "biome check . --write"
+  }
+}
