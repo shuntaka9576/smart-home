@@ -8,7 +8,10 @@ published: false
 
 
 
+
 ## はじめに
+
+本記事は [クラスメソッド発 製造業 Advent Calendar 2024](https://adventar.org/calendars/10479) の22日目の記事となります。
 
 製造業との絡み的には、電力消費の可視化、分析、予測はよくあるテーマです。本記事では、まず身近な自宅を例に試してみることにしました。
 
@@ -28,8 +31,7 @@ published: false
 想定読者としては以下の通りです
 
 * 自宅の電力データやセンサーデータを収集したい
-* MCPサーバーを構築したい
-* LangGraphを使った簡単な分析アプリを作りたい
+* 生成AIエコシステム(LangGraph,MCP,LangChain,Bedrock)を使った分析アプリを作りたい
 :::
 
 本記事で紹介するプログラムは、全てこちらに置いています。アプリ、ドキュメント、インフラ全て用意しているので、参考になれば幸いです。
@@ -40,7 +42,7 @@ https://github.com/shuntaka9576/smart-home
 
 ### 概要
 
-以下2つを試します。まずはアウトプットを出すだけで精緻さは求めません。
+以下2つを試します。
 
 * 電気料金の予測
 * 電力量とその他指標の関連分析
@@ -72,9 +74,7 @@ https://github.com/shuntaka9576/smart-home
 |[Nature Remo 3](https://amzn.asia/d/foS70lU)|気温,湿度,照度,エアコンの起動状態の起動状態の取得
 |[Nature Remo E lite](https://amzn.asia/d/aSmi49w)|電力量の取得 ※ Bルート申請が必要(後述)
 
-### 構成図
-
-#### 全体像
+### 全体像
 
 全体像は以下の通りです。以下の順で構成図の解説をします。
 
@@ -85,7 +85,7 @@ https://github.com/shuntaka9576/smart-home
 
 ![architecture](https://devio2024-media.developers.io/image/upload/v1734727155/2024/12/21/n85ip5c2o1vqnavc9yvc.png)
 
-#### データ収集
+### データ収集
 
 まずはセンサーデータ(電力量,気温,湿度,照度,エアコンの起動状態)をデータ基盤(収集)で貯めます。今回使用しているNatureの機器で取得したデータは、NatureのクラウドAPIで取得できます。
 ![architecture_01](https://devio2024-media.developers.io/image/upload/v1734727141/2024/12/21/fnwcegqtqoox6hf6wgg5.png)
@@ -93,7 +93,7 @@ https://github.com/shuntaka9576/smart-home
 1. `[1]EventBridge` (15分に1回)でイベント発火
 2. `[2]Lambda(センサーデータ書き込み)` を起動し、`[3]NatureのクラウドAPI`を実行し、データを取得し、`[4]Supabase`へ書き込み
 
-#### データ配信
+### データ配信
 
 今回は `AIエージェントアプリ` からも `Claude Desktop` から電力量、センサーデータはMCP経由で取得する予定のため、HTTP APIを構築します。このHTTP APIはGoのMCPサーバーでラップします。
 
@@ -103,7 +103,7 @@ https://github.com/shuntaka9576/smart-home
 2. `[2]Lambda(センサーデータ配信)`が期間に応じたセンサーデーターを`[3]Supabase`に要求し受け取る
 4. `[2]Lambda`から`[1]APIGateway` に返却し、AIエージェントアプリやClaude Desktopへセンサーデータを返却
 
-#### 生成AI(Claude Desktop with MCP)による分析
+### 生成AI(Claude Desktop with MCP)による分析
 
 ![architecture_03](https://devio2024-media.developers.io/image/upload/v1734727149/2024/12/21/drgo3eqzjjy6dbievcke.png)
 
@@ -111,7 +111,7 @@ https://github.com/shuntaka9576/smart-home
 2. `[1]私` が `[2]Claude Desktop` を使い `[3]MCPサーバー` を経由し、`[4]APIGateway(センサーデータ配信)` からデータを取得
 3. `[2]Claude Desktop` は項2で取得したデータを解析し、`[1]私` へ返却
 
-#### 生成AI(LangGraph)による分析
+### 生成AI(LangGraph)による分析
 
 ![architecture_04](https://devio2024-media.developers.io/image/upload/v1734736756/2024/12/21/zpmuylxuun1z9b0dd4te.png)
 
@@ -255,18 +255,21 @@ pnpm prisma migrate dev --name init
 |`/1/appliances`|電力量, 空調起動状態|
 |`/1/devices`|気温,湿度,照度|
 
+それぞれAPIを生で叩いてみます。
+
 ```bash
 export NATURE_API_TOKEN="<APIトークン>"
 ```
 
+電力量、空調起動状態が取れるAPIを叩いてみます。
 ```bash:リクエスト(/1/appliances)
 curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization: Bearer $NATURE_API_TOKEN" | jq
 ```
 
+コメントにて、利用するフィールドを記載しています。
 ```json:レスポンス(/1/appliances) ※ 一部
 [
   {
-    "id": "39c2c7ed-b3d4-48b6-b689-46641334eebe",
     "device": {
       "name": "Remo",
       ...
@@ -288,7 +291,6 @@ curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization:
     ....
   },
   {
-    "id": "55649c02-1cab-47d5-80d6-5af037330dd2",
     "device": {
       "name": "Remo E lite",
       ...
@@ -345,6 +347,7 @@ curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization:
 
 ```
 
+その他気温、湿度、照度はこちらです。
 ```bash:リクエスト(/1/devices)
 curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization: Bearer $NATURE_API_TOKEN" | jq
 ```
@@ -353,7 +356,6 @@ curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization:
 [
   {
     "name": "Remo",
-    "id": "f22d512b-92cc-4fef-b7ea-42ba852ef074",
     ...
     ],
     "newest_events": {
@@ -383,7 +385,7 @@ curl -X GET "https://api.nature.global/1/appliances" -k --header "Authorization:
 ]
 ```
 
-今回は電力量(cumulative_electric_energy)以外は、取得したものをそのままデータベース書き込みます。15分に1度EventBridge経由で実行し、書き込みを行います。それぞれの値に対して書き込み時間がついているので、厳密にやる場合はこの値も考慮した方が良いと思います。今回はほぼニアリアルに更新されるという前提で、15分ごとに書き込んでいます。
+基本的に電力量(cumulative_electric_energy)以外は、取得したものをそのままデータベース書き込みます。15分に1度EventBridge経由で実行し、書き込みを行います。それぞれの値に対して書き込み時間がついているので、厳密にやる場合はこの値も考慮した方が良いと思います。今回はほぼニアリアルに更新されるという前提で、15分ごとに書き込んでいます。
 
 書き込み処理は以下の通りです。
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/application/use-cases/store-home-condition-use-case.ts#L1-L19
@@ -398,7 +400,6 @@ https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328
 積算電力量(正方向)と積算電力量単位を乗算しています。JavaScriptの計算誤差を防ぐためにdecimal.jsを使っています。(繰り返しにはなりますが、DBをDecimal型にしてPrisma.Decimalを使うのが良いと思います。)
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/src/domain/service/smart-meter-echonet-calculator.ts#L15-L23
 
-
 #### IaC
 
 今回はLambdaから書き込むので、Prismaの場合クエリエンジンのバイナリを含める必要があり、少し面倒でした。[drizzle-orm](https://github.com/drizzle-team/drizzle-orm)や[kysely](https://github.com/kysely-org/kysely)なんかもおすすめです。
@@ -407,7 +408,6 @@ https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328
 
 LambdaのARM_64アーキテクチャを利用する場合はこちらで指定が必要です。
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-data-platform/prisma/schema.prisma#L3
-
 
 ### 確認
 
@@ -545,7 +545,7 @@ MCPサーバーは別プロセスとして起動し、LLMアプリケーショ�
 
 今回はPythonのプロセスとGoのプロセスで標準入出力を使って通信します。[Model Context Protocol サーバーをGoで実装する](https://zenn.dev/masacento/articles/3e91c61f20787b)を参考に実装の略図を書くと以下の通りです。
 
-![mcp_go_model](https://devio2024-media.developers.io/image/upload/v1734806390/2024/12/22/pmalmkgrmrrgwi1nlx3d.png)
+![mcp_go_model](https://devio2024-media.developers.io/image/upload/v1734816303/2024/12/22/tnxon7tj5wccizswjkj4.png)
 
 MCPの`tools/list`が呼び出されたら、以下のJSONを返却し、LLMがFunction calling(Tool Use)が呼び出せるようにします。
 
@@ -666,7 +666,6 @@ FastAPIをLambda+LWA構成でホスティングします。15分間は生成に�
 
 https://github.com/shuntaka9576/smart-home/blob/aa52f767849f2bad2298730147e1c328978707f1/apps/smart-home-ai-agent/Dockerfile#L1-L36
 
-
 ### 実装方針
 
 LangGraphのワークフローは2つ作ります。実際にアプリを作るなら両方渡してもいいですし、ワークフローは1つで良いと思います。説明や検証のため今回はこの構成をとっています。
@@ -730,8 +729,8 @@ LangSmithのメトリクスデータを確認します。
 | `forecast_electric_energy_by_png_node`| 前ノードの画像を元にLLMに予測         |
 | `adjustmet_message_for_slack_node`    | 前項どのようにSlackメッセージにLLMで整形       |
 
-Slackにレポートと生成した画像の両方を送ってもらいます。
-https://github.com/shuntaka9576/smart-home/blob/95b934a59e9235f3d00e4d49735eafc5ef10fdb6/apps/smart-home-ai-agent/src/application/use_case/create_electric_energy_report_use_case.py?#L21-L22
+Slackへレポートと生成した画像の両方を送ってもらいます。
+https://github.com/shuntaka9576/smart-home/blob/737d6f6a8f25d22f6665ffea6b8ea07bfc08dc9f/apps/smart-home-ai-agent/src/application/use_case/create_electric_energy_report_use_case.py#L21-L22
 
 結果は以下の通りです。
 
@@ -743,13 +742,15 @@ https://github.com/shuntaka9576/smart-home/blob/95b934a59e9235f3d00e4d49735eafc5
 
 こちらもある程度傾向を掴んでいるように見えます。
 
-LangSmithのメトリクスデータを確認します。
+LangSmithのメトリクスデータを確認します。予測する部分のLLMの処理が一番時間がかかっていますね！
 
 ![CleanShot 2024-12-22 at 05.37.20@2x](https://devio2024-media.developers.io/image/upload/v1734813506/2024/12/22/c5anfew97cwr9cllextj.png)
 
 ## さいごに
 
-今回きっとMLでやるのが正解なんだろうなというところを簡易分析という形で生成AIでやってみました。短い期間であればある程度信頼性のある傾向を出力してくれるので利用価値が高そうだなと思いました。
+今回は生成AIを使って短い期間の分析をしました。であればある程度信頼性のある傾向を出力してくれるので利用価値が高そうだなと思いました。
+
+生成AIエコシステムもさまざまなライブラリがあり、特にo11y周りのlangSmithは生成AIアプリのチューニングで必要不可欠です。自然言語やバイナリのインプットとアウトプットがワークフローの中で複雑に遷移するので、同じことをロギングでやるには非常に骨が折れます。これがプロダクトユースになると価格面やセキュリティ面でlangfuseになりやすい気がしますが、やはり本家はよく出来ています。
 
 また今後Claude DesktopのようなLLMクライアントが高度化してくるとMCPは重要だなと思いました。連携さえしてしまえば個人的なデータもサブスク料金内で自由に解析ができるため、便利です。他のベンダーも追従するといいですね。
 
@@ -761,7 +762,7 @@ LangSmithのメトリクスデータを確認します。
 
 実際説明しきれていない部分はいくつかあります。ただ公開していないコードはないので、リポジトリを見れば同じものは作れると思います。
 
-何かあれば@shuntaka_jpまでお願いします。
+何かあれば、issueにお願いします！
 
 ## 参考資料
 
