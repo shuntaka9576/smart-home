@@ -9,6 +9,7 @@ published: false
 
 
 
+
 ## はじめに
 
 本記事は [クラスメソッド発 製造業 Advent Calendar 2024](https://adventar.org/calendars/10479) の22日目の記事となります。
@@ -99,16 +100,16 @@ https://github.com/shuntaka9576/smart-home
 
 ![architecture_02](https://devio2024-media.developers.io/image/upload/v1734727145/2024/12/21/pd0svdremzy2yzavi6ho.png)
 
-1. `[1]APIGateway`がHTTPリクエストを受け取る(期間指定since=yyyy-MM-dd HH:mm&until=yyyy-MM-dd HH:mm)
+1. `[1]API Gateway`がHTTPリクエストを受け取る(期間指定since=yyyy-MM-dd HH:mm&until=yyyy-MM-dd HH:mm)
 2. `[2]Lambda(センサーデータ配信)`が期間に応じたセンサーデーターを`[3]Supabase`に要求し受け取る
-4. `[2]Lambda`から`[1]APIGateway` に返却し、AIエージェントアプリやClaude Desktopへセンサーデータを返却
+4. `[2]Lambda`から`[1]API Gateway` に返却し、AIエージェントアプリやClaude Desktopへセンサーデータを返却
 
 ### 生成AI(Claude Desktop with MCP)による分析
 
 ![architecture_03](https://devio2024-media.developers.io/image/upload/v1734727149/2024/12/21/drgo3eqzjjy6dbievcke.png)
 
 1. `[2]Claude Desktop` のコンフィグ `[3]MCPサーバー` の設定
-2. `[1]私` が `[2]Claude Desktop` を使い `[3]MCPサーバー` を経由し、`[4]APIGateway(センサーデータ配信)` からデータを取得
+2. `[1]私` が `[2]Claude Desktop` を使い `[3]MCPサーバー` を経由し、`[4]API Gateway(センサーデータ配信)` からデータを取得
 3. `[2]Claude Desktop` は項2で取得したデータを解析し、`[1]私` へ返却
 
 ### 生成AI(LangGraph)による分析
@@ -117,8 +118,8 @@ https://github.com/shuntaka9576/smart-home
 
 1. `[1]IFTTT` は外出を検知し、`[2]Lambda(AIエージェント)` へ `Webhook(HTTPS POST)` で機能実行を要求
 2. `[2]Lambda(AIエージェント)` は、起動したLangGraphのワークフローを元に `[4]MCPサーバー` へ `JSON RPC 2.0 on 標準入力` でセンサーデータを要求
-3. `[4]MCPサーバー` は、`[5]APIGateway(センサーデータ配信)` へ `HTTPS` でセンサーデータを要求
-4. `[5]APIGateway(センサーデータ配信)` は、 `[5]Lambda(センサーデータ配信)` へ `AWS内部通信` でセンサーデータを要求
+3. `[4]MCPサーバー` は、`[5]API Gateway(センサーデータ配信)` へ `HTTPS` でセンサーデータを要求
+4. `[5]API Gateway(センサーデータ配信)` は、 `[5]Lambda(センサーデータ配信)` へ `AWS内部通信` でセンサーデータを要求
 5. `[5]Lambda(センサーデータ配信)` へ `[6]Supabase(センサーデータ保存)` へ センサーデータを要求
 6. 項5の通信の戻り
 7. 項4の通信の戻り
@@ -419,7 +420,7 @@ Supabaseのコンソール画面からデータが取り込まれていること
 
 ### 構成図
 
-APIGatewayとLambdaのサーバーレス構成です。APIGatewayを使ったのは、APIキーでの認証が手軽にできるためです。
+API GatewayとLambdaのサーバーレス構成です。API Gatewayを使ったのは、APIキーでの認証が手軽にできるためです。
 
 ![architecture_02](https://devio2024-media.developers.io/image/upload/v1734727145/2024/12/21/pd0svdremzy2yzavi6ho.png)
 
@@ -445,9 +446,9 @@ https://github.com/shuntaka9576/smart-home/blob/daa4b240adef672f46447ceecc15a140
 
 ### 確認
 
-デプロイしたAPIGatewayにリクエストを送ってデータが取得できることを確認します。
+デプロイしたAPI Gatewayにリクエストを送ってデータが取得できることを確認します。
 
-```bash:APIGatewayのエンドポイントとAPIキーをマネジメントコンソールからコピーして設定する
+```bash:API GatewayのエンドポイントとAPIキーをマネジメントコンソールからコピーして設定する
 export SMART_HOME_API_GATEWAY_DOMAIN="" # https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/v1 まで含める
 export SMART_HOME_API_KEY=""
 ```
@@ -598,7 +599,7 @@ make build
 
 ### Claude Desktopのコンフィグの設定
 
-APIGatewayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
+API GatewayのAPIキーがCDKで自動的に発行されているので、そちらを`mcpServers.smart-home-mcp-server.env.SMART_HOME_API_KEY`に記載してください。
 
 ```bash
 nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -611,7 +612,7 @@ nvim ~/Library/Application\ Support/Claude/claude_desktop_config.json
       "command": "/Users/shuntaka/repos/github.com/shuntaka9576/smart-home/apps/smart-home-ai-agent/smart-home-mcp-server",
       "args": [],
       "env": {
-        "SMART_HOME_API_KEY": "<APIGatewayのAPIキー>" // <- ここに入れてね
+        "SMART_HOME_API_KEY": "<API GatewayのAPIキー>" // <- ここに入れてね
       }
     }
   }
